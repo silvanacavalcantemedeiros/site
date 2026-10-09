@@ -1,1 +1,38 @@
 
+name: Atualizar catálogos Avon
+
+on:
+  schedule:
+    - cron: "17 10 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  atualizar:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Baixar repositório
+        uses: actions/checkout@v4
+
+      - name: Preparar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Atualizar catálogos
+        run: python scripts/update-avon.py
+
+      - name: Salvar alterações
+        run: |
+          if [[ -n "$(git status --porcelain public/data/avon-campaigns.json)" ]]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add public/data/avon-campaigns.json
+            git commit -m "Atualiza catálogos Avon"
+            git push
+          else
+            echo "Nenhuma alteração nos catálogos."
+          fi
