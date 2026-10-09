@@ -1,38 +1,76 @@
 
-name: Atualizar catálogos Avon
+name: Atualizar e publicar catalogos Avon
 
 on:
   schedule:
     - cron: "17 10 * * *"
   workflow_dispatch:
+  push:
+    branches:
+      - main
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
 
 jobs:
-  atualizar:
+  build:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Baixar repositório
+      - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Preparar Python
+      - name: Configurar Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.x"
 
-      - name: Atualizar catálogos
+      - name: Atualizar catalogos
         run: python scripts/update-avon.py
 
-      - name: Salvar alterações
+      - name: Salvar JSON atualizado
         run: |
-          if [[ -n "$(git status --porcelain public/data/avon-campaigns.json)" ]]; then
+          if ! git diff --quiet -- public/data/avon-campaigns.json; then
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git add public/data/avon-campaigns.json
-            git commit -m "Atualiza catálogos Avon"
+            git commit -m "Atualiza catalogos Avon"
             git push
-          else
-            echo "Nenhuma alteração nos catálogos."
           fi
+
+      - name: Configurar Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Compilar Vite
+        run: npm run build
+
+      - name: Configurar GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Preparar publicacao
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+    steps:
+      - name: Publicar site
+        uses: actions/deploy-pages@v4
